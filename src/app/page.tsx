@@ -7,8 +7,7 @@ interface ChatMessage {
 }
 
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
-  const [text, setText] = useState<string>("");
+const [text, setText] = useState<string>("");
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState<string>("");
 

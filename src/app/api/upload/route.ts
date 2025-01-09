@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import pdf from "pdf-parse";
 
 export async function POST(req: NextRequest) {
@@ -7,10 +7,11 @@ export async function POST(req: NextRequest) {
     const pdfBuffer = Buffer.from(file, "base64");
     const data = await pdf(pdfBuffer);
     return Response.json({ text: data.text });
-  } catch (error: any) {
-    return Response.json(
-      { error: `Failed to parse PDF ${error.message} ` },
-      { status: 500 }
-    );
+} catch (error: unknown) {
+const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+return NextResponse.json(
+    { error: `Failed to parse PDF: ${errorMessage}` },
+    { status: 500 }
+);
   }
 }

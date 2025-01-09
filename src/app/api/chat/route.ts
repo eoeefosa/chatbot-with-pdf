@@ -13,11 +13,12 @@ export async function POST(request: NextRequest) {
 
     // Return the response
     return NextResponse.json({ response }, { status: 200 });
-  } catch (error: any) {
-    console.error("Chat API Error:", error);
-    return NextResponse.json(
-      { error: `Failed to generate response  ${error.message}` },
-      { status: 500 }
-    );
+} catch (error: unknown) {
+console.error("Chat API Error:", error);
+const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+return NextResponse.json(
+    { error: `Failed to generate response: ${errorMessage}` },
+    { status: 500 }
+);
   }
 }
