@@ -1,17 +1,37 @@
-import { NextRequest, NextResponse } from "next/server";
+// app/api/upload-pdf/route.ts
+import { NextRequest } from "next/server";
 import pdf from "pdf-parse";
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const { file } = (await req.json()) as { file: string };
-    const pdfBuffer = Buffer.from(file, "base64");
-    const data = await pdf(pdfBuffer);
-    return Response.json({ text: data.text });
-} catch (error: unknown) {
-const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-return NextResponse.json(
-    { error: `Failed to parse PDF: ${errorMessage}` },
-    { status: 500 }
-);
+    // Log the start of request handling
+    console.log("Received PDF upload request");
+
+    const data = await request.json();
+    //   const data = await request.text();
+
+    // Validate incoming data
+    if (!data || !data.file) {
+      console.error("Missing file data in request");
+      return new Response(JSON.stringify({ error: "No file data provided" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Convert base64 to buffer and parse PDF
+    const pdfBuffer = Buffer.from(data.file, "base64");
+    const pdfData = await pdf(pdfBuffer);
+
+    return new Response(JSON.stringify({ text: pdfData.text }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("PDF processing error:", error);
+    return new Response(JSON.stringify({ error: "Failed to process PDF" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
