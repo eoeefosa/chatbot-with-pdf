@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { createWorker } from 'tesseract.js';
-import { pdfjs } from 'pdf-js';
+import * as pdfjs from 'pdfjs-dist';
+import { PDFDocumentProxy } from 'pdfjs-dist';
 interface ChatMessage {
   user: string;
   bot: string;
