@@ -8,9 +8,9 @@ interface ChatMessage {
   bot: string;
 }
 
-// Initialize PDF.js worker
-// You'll need to copy the worker file to your public directory
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
+
+// Initialize PDF.js worker using CDN
+pdfjs.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.17.279/pdf.worker.min.js";
 
 export default function Home() {
   const [text, setText] = useState<string>("");
