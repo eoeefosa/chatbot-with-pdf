@@ -2,10 +2,40 @@ import { NextRequest, NextResponse } from "next/server";
 import PDFParser from 'pdf2json';
 
 interface RequestData {
-  file?: string;
+file?: string;
 }
 
-export async function POST(request: NextRequest) {
+interface PDFText {
+R: Array<{ T: string }>;
+}
+
+interface PDFPage {
+Texts: PDFText[];
+}
+
+interface PDFMetadata {
+Creator?: string;
+Producer?: string;
+CreationDate?: string;
+}
+
+interface PDFData {
+Pages: PDFPage[];
+Meta?: PDFMetadata;
+}
+
+interface APIResponse {
+text?: string;
+pages?: number;
+metadata?: {
+    creator: string;
+    producer: string;
+    creationDate: string;
+};
+error?: string;
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse<APIResponse>> {
   try {
     console.log("Received PDF upload request");
 
@@ -57,13 +87,13 @@ export async function POST(request: NextRequest) {
       });
 
       // Extract text from the parsed data
-      const text = (pdfData as any).Pages
-        .map((page: any) => {
-          return page.Texts
-            .map((textItem: any) => decodeURIComponent(textItem.R[0].T))
-            .join(' ');
-        })
-        .join('\n\n');
+    const text = (pdfData as PDFData).Pages
+    .map((page: PDFPage) => {
+        return page.Texts
+        .map((textItem: PDFText) => decodeURIComponent(textItem.R[0].T))
+        .join(' ');
+    })
+    .join('\n\n');
 
       if (!text) {
         return NextResponse.json(
@@ -74,12 +104,12 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         {
-          text: text,
-          pages: (pdfData as any).Pages.length,
-          metadata: {
-            creator: (pdfData as any).Meta?.Creator || '',
-            producer: (pdfData as any).Meta?.Producer || '',
-            creationDate: (pdfData as any).Meta?.CreationDate || ''
+        text: text,
+        pages: (pdfData as PDFData).Pages.length,
+        metadata: {
+        creator: (pdfData as PDFData).Meta?.Creator || '',
+        producer: (pdfData as PDFData).Meta?.Producer || '',
+        creationDate: (pdfData as PDFData).Meta?.CreationDate || ''
           }
         },
         { status: 200 }
