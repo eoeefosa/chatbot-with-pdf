@@ -13,10 +13,10 @@ export async function POST(request: NextRequest) {
 
     // Return the response
     return NextResponse.json({ response }, { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Chat API Error:", error);
     return NextResponse.json(
-      { error: "Failed to generate response" },
+      { error: `Failed to generate response  ${error.message}` },
       { status: 500 }
     );
   }
