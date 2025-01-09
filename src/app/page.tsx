@@ -1,68 +1,106 @@
 "use client";
 import { useState } from "react";
-import { createWorker } from 'tesseract.js';
-import * as pdfjs from 'pdfjs-dist';
-import { PDFDocumentProxy } from 'pdfjs-dist';
+import { createWorker } from "tesseract.js";
+import * as pdfjs from "pdfjs-dist";
+// import { PDFDocumentProxy } from "pdfjs-dist";
 interface ChatMessage {
   user: string;
   bot: string;
 }
 
+// Initialize PDF.js worker
+// You'll need to copy the worker file to your public directory
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
+
 export default function Home() {
   const [text, setText] = useState<string>("");
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState<string>("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [isSending, setIsSending] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  // const [isUploading, setIsUploading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+
+  const convertPDFToImages = async (file: File): Promise<string[]> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjs.getDocument(arrayBuffer).promise;
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d")!;
+    const imageUrls: string[] = [];
+    const totalPages = pdf.numPages;
+
+    for (let i = 1; i <= totalPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.5 }); // Adjust scale for better OCR
+
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({
+        canvasContext: context,
+        viewport: viewport,
+      }).promise;
+
+      imageUrls.push(canvas.toDataURL("image/png"));
+      setProcessingProgress((i / totalPages) * 50); // First 50% for PDF processing
+    }
+
+    return imageUrls;
+  };
+
+  const performOCR = async (imageUrls: string[]): Promise<string> => {
+    // Create a worker with logger using the new API
+    const worker = await createWorker("eng", 1, {
+      logger: (m) => {
+        const progress = m.progress || 0;
+        const ocrProgress = 50 + progress * 50;
+        setProcessingProgress(Math.min(ocrProgress, 99));
+      },
+    });
+
+    let fullText = "";
+
+    for (let i = 0; i < imageUrls.length; i++) {
+      const {
+        data: { text },
+      } = await worker.recognize(imageUrls[i]);
+      fullText += `[Page ${i + 1}]\n${text}\n\n`;
+    }
+
+    await worker.terminate();
+    return fullText;
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsUploading(true);
+    setIsProcessing(true);
     setError(null);
+    setProcessingProgress(0);
 
     try {
       if (file.type !== "application/pdf") {
         throw new Error("Please upload a PDF file");
       }
 
-      const reader = new FileReader();
-      const fileData = await new Promise<string>((resolve, reject) => {
-        reader.onload = (e) => {
-          const base64 = e.target?.result?.toString().split(",")[1];
-          if (base64) {
-            resolve(base64);
-          } else {
-            reject(new Error("Failed to read file"));
-          }
-        };
-        reader.onerror = () => reject(new Error("Failed to read file"));
-        reader.readAsDataURL(file);
-      });
+      // Convert PDF to images
+      const imageUrls = await convertPDFToImages(file);
 
-      const res = await fetch("/api/upload-pdf", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ file: fileData }),
-      });
+      // Perform OCR on images
+      const extractedText = await performOCR(imageUrls);
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to upload PDF");
-      }
-
-      const data = await res.json();
-      setText(data.text);
-      setChat([]); // Clear previous chat when new PDF is uploaded
+      setText(extractedText);
+      setChat([]); // Clear previous chat
+      setProcessingProgress(100);
     } catch (error) {
-      console.error("File upload error:", error);
-      setError(error instanceof Error ? error.message : "Failed to upload PDF");
+      console.error("File processing error:", error);
+      setError(
+        error instanceof Error ? error.message : "Failed to process PDF"
+      );
     } finally {
-      setIsUploading(false);
+      setIsProcessing(false);
     }
   };
 
@@ -113,13 +151,13 @@ export default function Home() {
         {/* File Upload Section */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Upload PDF
+            Upload PDF (with OCR support)
           </label>
           <input
             type="file"
             onChange={handleFileUpload}
             accept="application/pdf"
-            disabled={isUploading}
+            disabled={isProcessing}
             className="block w-full text-sm text-gray-500
               file:mr-4 file:py-2 file:px-4
               file:rounded-md file:border-0
@@ -128,9 +166,20 @@ export default function Home() {
               hover:file:bg-blue-100
               disabled:opacity-50"
           />
-          {isUploading && (
-            <p className="mt-2 text-sm text-blue-600">Uploading PDF...</p>
+          {isProcessing && (
+            <div className="mt-2">
+              <p className="text-sm text-blue-600">
+                Processing PDF... {Math.round(processingProgress)}%
+              </p>
+              <div className="mt-1 w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-all duration-300"
+                  style={{ width: `${processingProgress}%` }}
+                />
+              </div>
+            </div>
           )}
+          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         </div>
 
         {/* PDF Content Display */}
